@@ -1,10 +1,10 @@
 <?php
 /*
 PHPImageHandler
-Version: 0.9.4 Beta
+Version: 0.9.5 Beta
 Developer: Shubham Gupta
 Licence: MIT
-Last Updated: 18 Sep, 2021 at 8:17 PM UTC +5:30
+Last Updated: 18 Sep, 2021 at 8:46 PM UTC +5:30
 */
 
 namespace {
@@ -17,11 +17,6 @@ namespace {
         private const ERROR_MYSQLI_QUERY_MSG = 'Error in mysqli query';
         private const ERROR_MYSQLI_CONNECT_MSG = 'Error in mysqli connection';
         public const ERROR_CODE = 50;
-        public const QUALITY_MINI = 6;
-        public const QUALITY_THUMBNAIL = 7;
-        public const QUALITY_MEDIUM = 8;
-        public const QUALITY_ORIGINAL = 9;
-        public const MAX_SUPPORT_RES = 1920;
 
         public function __construct(mysqli $db, string $imagesDIR)
         {
@@ -46,7 +41,7 @@ namespace {
             $aq = "CREATE TABLE IF NOT EXISTS `assinged_images` (
             `uniqueID` INT(11) NOT NULL AUTO_INCREMENT,
             `imageID` INT(11) NOT NULL ,
-            `for` INT(11) NOT NULL default 0 ,
+            `for` VARCHAR(255) NOT NULL ,
             `position` INT(11) NOT NULL default 0 ,
             `table` VARCHAR(255) NOT NULL ,
             PRIMARY KEY (`uniqueID`)
@@ -60,10 +55,10 @@ namespace {
             }
         }
 
-        public function getImagesFor(string $dir, $for)
+        public function getImagesFor(string $table, string $for)
         {
-            $q = "SELECT uniqueID, position, dir, name, data FROM `assinged_images`,`all_images`  WHERE `assinged_images`.`imageID` = `all_images`.`imageID`
-        AND `assinged_images`.`dir` = '$dir' AND `assinged_images`.`for` = $for";
+            $q = "SELECT * FROM `assinged_images`,`all_images`  WHERE `assinged_images`.`imageID` = `all_images`.`imageID`
+        AND `assinged_images`.`table` = '$table' AND `assinged_images`.`for` = '$for' ORDER BY position";
             $res = $this->db->query($q);
             if (!$res) {
                 throw new Exception($q, self::ERROR_CODE);
@@ -71,40 +66,15 @@ namespace {
             $array = [];
             while ($row = $res->fetch_assoc()) {
                 $row['data'] = (array) json_decode($row['data']);
-                $qualities = $row['data']['qualities'];
-                $available = $row['data']['available'];
-
-                $qImages = [];
-                $avl = [];
-                foreach ($qualities as $qlt) {
-                    $subDir = "";
-                    $qImages[] = $subDir;
-                    if (in_array($qlt, $available))
-                        $avl[] = $subDir;
-                    /* 
-                if (in_array($qlt, $available)) {
-                    $qImages[$subDir] = $subDir . '/' . $row['name'];
-                } else {
-                    $qImages[$subDir] = $this->_getQualtityDirName(self::QUALITY_ORIGINAL) . '/' . $row['name'];
-                } */
-                }
-                $row[] = $qImages;
                 $array[] = [
-                    'id' => $row['uniqueID'],
-                    'pos' => $row['position'],
-                    'dir' => $row['dir'],
                     'name' => $row['name'],
-                    'keywords' => $row['data']['keywords'],
-                    'qualities' => $qImages,
-                    'available' => $avl,
+                    'table' => $row['table'],
+                    'resolutions' =>  $row['data']['resolutions'],
                 ];
             }
             return $array;
         }
-        // $fileName = $this->_saveImage($file, $fileName, $dir . '/' . $this->_getQualtityDirName(self::QUALITY_ORIGINAL), -1);
-        // $this->_saveImage($this->imagesDIR . $dir . '/' . $this->_getQualtityDirName(self::QUALITY_ORIGINAL) . '/' . $fileName, $fileName, $dir . '/' . $this->_getQualtityDirName($quality), $this->_getQualtityMaxRes($quality)))
 
-        // string $dir, string $file, $for, int $position, array $moreQualities = null, string $keywords = null
         public function addImage(NewImage $nImage)
         {
             $nextID = $this->_getNextImageID();
@@ -121,7 +91,6 @@ namespace {
                     $qltArr[] = $name;
             }
 
-            $moreQualities[] = self::QUALITY_ORIGINAL;
             $data = json_encode([
                 'resolutions' => $qltArr,
                 'keywords' => $nImage->keywords,
@@ -165,9 +134,14 @@ namespace {
 
             list($width, $height) = $data;
 
+
             list($nwidth, $nheight) = $this->_getNewWidthAndHeight($width, $height, $maxRes);
+            echo "$width $nwidth $maxRes";
             if ($nwidth > $width)
                 return null;
+
+            echo $target_dir . $fileName;
+
 
             $newimage = imagecreatetruecolor($nwidth, $nheight);
             if ($data['mime'] === 'image/jpeg') {
@@ -224,12 +198,9 @@ namespace {
         {
             $w = 0;
             $h = 0;
-            if ($maxRes == -1) {
-                if ($height > self::MAX_SUPPORT_RES || $width > self::MAX_SUPPORT_RES) {
-                    $maxRes = self::MAX_SUPPORT_RES;
-                } else {
-                    return [$width, $height];
-                }
+            $big = max($width, $height);
+            if ($big < $maxRes) {
+                return [$width, $height];
             }
             if ($width > $height) {
                 $w = $maxRes;
@@ -248,7 +219,7 @@ namespace {
 
 namespace ImageHandler {
 
-    class Quality
+    /* class Quality
     {
         public function __construct(string $qualityName, int $resolution)
         {
@@ -258,7 +229,7 @@ namespace ImageHandler {
             // $d = (new NewImage("products", 45))->setMoreResolutions();
             // $d->setMoreResolutions(['original' => 1080], []);
         }
-    }
+    } */
 
 
     class NewImage
@@ -267,7 +238,7 @@ namespace ImageHandler {
         {
             return new NewImage($table, $uniqueKey);
         }
-        public function setOriginalResolution(int $px = 1920): NewImage
+        public function setOriginalResolution(int $px): NewImage
         {
             $this->px = $px;
             return $this;
@@ -278,7 +249,7 @@ namespace ImageHandler {
             $this->res = $res;
             return $this;
         }
-        public function setFile(int $file): NewImage
+        public function setFile(string $file): NewImage
         {
             $this->file = $file;
             return $this;
@@ -294,6 +265,7 @@ namespace ImageHandler {
             $this->res = [];
             $this->file = null;
             $this->keywords = null;
+            $this->px = 1920;
             $this->uniqueKey = $uniqueKey;
         }
     }

@@ -1,13 +1,17 @@
 <?php
+
+use ImageHandler\NewImage;
+
 require './PHPImageHandler.php';
 
 $db = new mysqli('localhost', 'root', '', 'krishi');
 try {
     $iHandler = new PHPImageHandler($db, dirname(__FILE__) . '/images');
     if (isset($_POST['submit'])) {
-        $iHandler->addImage('products', $_FILES['file']['tmp_name'], 46, 1, [ImagesHandler::QUALITY_MEDIUM, ImagesHandler::QUALITY_THUMBNAIL]);
+        $newImage = NewImage::for("table", 45)->setFile($_FILES['file']['tmp_name']);
+        $iHandler->addImage($newImage);
     }
-    $images = $iHandler->getImagesFor('products', 46);
+    $images = $iHandler->getImagesFor('table', 45);
     echo json_encode($images);
 } catch (Exception $e) {
     die($e);
