@@ -1,9 +1,9 @@
 <?php
-require './class.ImagesHandler.php';
+require './PHPImageHandler.php';
 
-$db = new mysqli('localhost', 'root', '', 'eleamapi');
+$db = new mysqli('localhost', 'root', '', 'krishi');
 try {
-    $iHandler = new ImagesHandler($db, dirname(__FILE__) . '/images');
+    $iHandler = new PHPImageHandler($db, dirname(__FILE__) . '/images');
     if (isset($_POST['submit'])) {
         $iHandler->addImage('products', $_FILES['file']['tmp_name'], 46, 1, [ImagesHandler::QUALITY_MEDIUM, ImagesHandler::QUALITY_THUMBNAIL]);
     }
