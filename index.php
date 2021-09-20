@@ -1,6 +1,6 @@
 <?php
 
-use ImageHandler\NewImage;
+use PHPImageHandler\NewImage;
 
 require './PHPImageHandler.php';
 
@@ -8,7 +8,8 @@ $db = new mysqli('localhost', 'root', '', 'krishi');
 try {
     $iHandler = new PHPImageHandler($db, dirname(__FILE__) . '/images');
     if (isset($_POST['submit'])) {
-        $newImage = NewImage::for("table", 45)->setFile($_FILES['file']['tmp_name']);
+        $newImage = NewImage::for("table", 45)->setFile($_FILES['file']['tmp_name'])
+            ->setMoreResolutions(720, 480)->setOriginalResolution(1080);
         $iHandler->addImage($newImage);
     }
     $images = $iHandler->getImagesFor('table', 45);

@@ -1,15 +1,15 @@
 <?php
 /*
 PHPImageHandler
-Version: 0.9.5 Beta
+Version: 0.9.6 Beta
 Developer: Shubham Gupta
 Licence: MIT
-Last Updated: 18 Sep, 2021 at 8:46 PM UTC +5:30
+Last Updated: 20 Sep, 2021 at 4:20 PM UTC +5:30
 */
 
 namespace {
 
-    use ImageHandler\NewImage;
+    use PHPImageHandler\NewImage;
 
     class PHPImageHandler
     {
@@ -55,10 +55,14 @@ namespace {
             }
         }
 
-        public function getImagesFor(string $table, string $for)
+        public function getImagesFor(string $table, string $for, int $limit = 0)
         {
             $q = "SELECT * FROM `assinged_images`,`all_images`  WHERE `assinged_images`.`imageID` = `all_images`.`imageID`
         AND `assinged_images`.`table` = '$table' AND `assinged_images`.`for` = '$for' ORDER BY position";
+
+            if ($limit != 0) {
+                $q .= " LIMIT $limit";
+            }
             $res = $this->db->query($q);
             if (!$res) {
                 throw new Exception($q, self::ERROR_CODE);
@@ -69,7 +73,7 @@ namespace {
                 $array[] = [
                     'name' => $row['name'],
                     'table' => $row['table'],
-                    'resolutions' =>  $row['data']['resolutions'],
+                    'moreResolutions' =>  $row['data']['moreResolutions'],
                 ];
             }
             return $array;
@@ -81,18 +85,18 @@ namespace {
             $randomName = $nextID . '_' . $this->_randomStr(4);
 
 
-            $imageLocation = $this->_getTargetDir($nImage->table . '/original');
-            $fileName = $this->_saveImage($nImage->file, $randomName, $imageLocation, $nImage->px);
+            $imageLocation = $this->_getTargetDir($nImage->table);
+            $fileName = $this->_saveImage($nImage->file, $randomName, $imageLocation, $nImage->px, true);
 
-            $qltArr = ['original'];
+            $qltArr = [];
             $moreRes = $nImage->res;
-            foreach ($moreRes as $name => $maxRes) {
-                if ($this->_saveImage($imageLocation . $fileName, $fileName, $this->_getTargetDir($nImage->table . '/' . $name), $maxRes))
-                    $qltArr[] = $name;
+            foreach ($moreRes as $maxRes) {
+                if ($this->_saveImage($imageLocation . $fileName, $fileName, $this->_getTargetDir($nImage->table . '/' . $maxRes), $maxRes, false))
+                    $qltArr[] = $maxRes;
             }
 
             $data = json_encode([
-                'resolutions' => $qltArr,
+                'moreResolutions' => $qltArr,
                 'keywords' => $nImage->keywords,
             ]);
 
@@ -120,10 +124,12 @@ namespace {
             }
             return $target_dir;
         }
-        private function _saveImage(string $file, string $fileName, string $target_dir, int $maxRes)
+        private function _saveImage(string $file, string $fileName, string $target_dir, int $maxRes, bool $isOriginal)
         {
             $data = getimagesize($file);
-            $fileName = $fileName . $this->_getFileExtension($data['mime']);
+            if ($isOriginal)
+                $fileName = $fileName . $this->_getFileExtension($data['mime']);
+
             if (!$data) {
                 throw new Exception("****************t", self::ERROR_CODE);
             }
@@ -135,13 +141,9 @@ namespace {
             list($width, $height) = $data;
 
 
-            list($nwidth, $nheight) = $this->_getNewWidthAndHeight($width, $height, $maxRes);
-            echo "$width $nwidth $maxRes";
+            list($nwidth, $nheight) = $this->_getNewWidthAndHeight($width, $height, $maxRes, $isOriginal);
             if ($nwidth > $width)
                 return null;
-
-            echo $target_dir . $fileName;
-
 
             $newimage = imagecreatetruecolor($nwidth, $nheight);
             if ($data['mime'] === 'image/jpeg') {
@@ -164,7 +166,7 @@ namespace {
             return $fileName;
         }
 
-       
+
 
         private function _getNextImageID()
         {
@@ -194,12 +196,12 @@ namespace {
             return '.tmp';
         }
 
-        private function _getNewWidthAndHeight(int $width, int $height, int $maxRes)
+        private function _getNewWidthAndHeight(int $width, int $height, int $maxRes, bool $isOriginal)
         {
             $w = 0;
             $h = 0;
             $big = max($width, $height);
-            if ($big < $maxRes) {
+            if ($big < $maxRes && $isOriginal) {
                 return [$width, $height];
             }
             if ($width > $height) {
@@ -217,7 +219,7 @@ namespace {
     }
 }
 
-namespace ImageHandler {
+namespace PHPImageHandler {
 
     /* class Quality
     {
@@ -244,7 +246,7 @@ namespace ImageHandler {
             return $this;
         }
 
-        public function setMoreResolutions(array ...$res): NewImage
+        public function setMoreResolutions(int ...$res): NewImage
         {
             $this->res = $res;
             return $this;
